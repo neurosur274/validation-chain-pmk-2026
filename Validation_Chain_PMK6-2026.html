@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Validation Chain — Arsitektur Kepatuhan RS PMK 6/2026, Layer demi Layer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EFF1F5; --panel:#FFFFFF; --ink:#1C2233; --ink-soft:#5B627A; --ink-faint:#8A90A6; --line:#E1E4EB;
+    --sidebar-w:320px;
+    --a:#1B3A6B; --a-soft:#E7ECF4;
+    --b:#137A82; --b-soft:#E2F1F1;
+    --c:#B6851F; --c-soft:#F7EDDA;
+    --d:#5B3A8E; --d-soft:#EEE7F6;
+    --e:#1E6FA8; --e-soft:#E4EFF7;
+    --st-belum:#9098AC; --st-belum-bg:#EEF0F4;
+    --st-draft:#B6851F; --st-draft-bg:#F7EDDA;
+    --st-final:#1C7A4A; --st-final-bg:#E1F2E7;
+    --warn:#C68A1C; --warn-bg:#FCF1D6;
+    --crit:#C23B34; --crit-bg:#FCE4E1;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans', sans-serif;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  .shell{display:flex;min-height:100vh;}
+
+  /* ---------- SIDEBAR ---------- */
+  .sidebar{width:var(--sidebar-w);flex:none;background:#161B29;color:#DDE1EE;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;padding:22px 0 0;}
+  .sidebar::-webkit-scrollbar{width:6px;}
+  .sidebar::-webkit-scrollbar-thumb{background:#33394d;border-radius:3px;}
+  .brand{padding:0 20px 18px;border-bottom:1px solid #262c3f;}
+  .brand .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7d84a0;margin:0 0 6px;}
+  .brand h1{font-family:'Fraunces',serif;font-weight:600;font-size:19px;line-height:1.25;margin:0;color:#fff;}
+  .brand h1 em{font-style:italic;font-weight:400;color:#8FC0E8;}
+  .brand-name{font-size:12px;font-weight:700;color:#8FC0E8;margin:10px 0 1px;letter-spacing:.01em;}
+  .brand-role{font-size:11px;font-weight:500;color:#A7AFC9;margin:0;}
+  .brand-version{
+    display:inline-flex;align-items:center;gap:5px;margin-top:10px;
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8991ac;
+    padding:3px 9px;border-radius:20px;border:1px solid #2e3550;
+  }
+  .brand-version .dot{width:6px;height:6px;border-radius:50%;background:#66C98A;flex:none;}
+  .brand-license{margin-top:8px;font-size:10px;color:#6b7290;line-height:1.4;}
+  .brand-license b{color:#A7AFC9;font-weight:600;}
+  .brand-license .edit-license{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:#7d84a0;}
+
+  /* ---- Identity/license modal ---- */
+  .id-overlay{
+    position:fixed;inset:0;background:rgba(15,18,28,.6);z-index:1000;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .id-card{
+    background:#fff;border-radius:16px;max-width:420px;width:100%;
+    padding:28px 26px;box-shadow:0 20px 60px rgba(0,0,0,.25);
+  }
+  .id-card .id-eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px;}
+  .id-card h3{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 10px;color:var(--ink);}
+  .id-card p.desc{font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin:0 0 18px;}
+  .id-field{margin-bottom:12px;}
+  .id-field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink);margin-bottom:5px;}
+  .id-field input{
+    width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;
+    font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:var(--ink);
+  }
+  .id-field input:focus{outline:2px solid #b9c4e0;border-color:transparent;}
+  .id-actions{display:flex;gap:10px;margin-top:18px;}
+  .id-btn-primary{
+    flex:1;background:var(--a);color:#fff;border:none;border-radius:9px;
+    padding:11px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;
+  }
+  .id-btn-primary:hover{background:#15305a;}
+  .id-btn-skip{
+    background:transparent;border:1px solid var(--line);color:var(--ink-soft);
+    border-radius:9px;padding:11px 14px;font-size:13px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;
+  }
+  .id-btn-skip:hover{background:#F5F6F9;}
+  .ov-progress{padding:16px 20px 18px;border-bottom:1px solid #262c3f;}
+  .ov-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .ov-num{font-family:'Fraunces',serif;font-size:24px;font-weight:600;color:#fff;}
+  .ov-cap{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:#7d84a0;}
+  .track{height:5px;background:#262c3f;border-radius:3px;overflow:hidden;}
+  .fill{height:100%;background:#66C98A;border-radius:3px;transition:width .3s ease;}
+  nav.layer-nav{padding:16px 12px 8px;border-bottom:1px solid #262c3f;}
+  nav.layer-nav .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#7d84a0;padding:0 8px 8px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;margin-bottom:2px;cursor:pointer;transition:background .15s ease;}
+  .nav-item:hover{background:#20263a;}
+  .nav-item.active-tab{background:#242b42;}
+  .nav-dot{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:11px;font-weight:700;color:#fff;}
+  .nav-text .t{font-size:12.5px;font-weight:600;color:#fff;line-height:1.2;}
+  .nav-text .s{font-size:10.5px;color:#8991ac;}
+  .nav-item .nav-pct{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8991ac;}
+  .nav-item.summary-link{border-top:1px dashed #2e3550;margin-top:6px;padding-top:11px;}
+
+  .radar{padding:14px 12px 22px;flex:1;}
+  .radar .nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#7d84a0;padding:0 8px 10px;display:flex;justify-content:space-between;}
+  .radar-filters{display:flex;gap:6px;padding:0 8px 10px;flex-wrap:wrap;}
+  .rf-btn{font-size:10.5px;padding:4px 9px;border-radius:20px;border:1px solid #2e3550;background:transparent;color:#a7adc4;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+  .rf-btn.active{background:#2e3550;color:#fff;}
+  .radar-item{padding:9px 10px;border-radius:9px;margin-bottom:4px;cursor:pointer;border:1px solid transparent;transition:background .15s ease, border-color .15s ease;}
+  .radar-item:hover{background:#20263a;border-color:#2e3550;}
+  .radar-top{display:flex;align-items:center;gap:7px;margin-bottom:4px;}
+  .radar-layer-chip{width:7px;height:7px;border-radius:50%;flex:none;}
+  .radar-akt{font-size:11.5px;color:#DDE1EE;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .radar-item.is-done .radar-akt{color:#6b7290;text-decoration:line-through;}
+  .radar-meta{display:flex;align-items:center;gap:6px;padding-left:14px;flex-wrap:wrap;}
+  .chip{font-family:'IBM Plex Mono',monospace;font-size:9.5px;padding:2px 7px;border-radius:12px;font-weight:500;}
+  .chip-belum{background:#2b3148;color:#9298b2;}
+  .chip-draft{background:#4a3a19;color:#e7bd6a;}
+  .chip-final{background:#173a26;color:#7fd39d;}
+  .chip-warn{background:#4a3712;color:#f0b94c;}
+  .chip-crit{background:#4a1c18;color:#f18f86;}
+  .chip-nodate{background:transparent;color:#5c6280;border:1px dashed #3a415c;}
+
+  /* ---------- MAIN ---------- */
+  main{flex:1;min-width:0;padding:32px 40px 100px;max-width:1180px;}
+  .hero{margin-bottom:26px;}
+  .hero .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px;}
+  .hero h2{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(24px,3vw,32px);line-height:1.15;margin:0 0 10px;letter-spacing:-0.01em;}
+  .hero h2 em{font-style:italic;font-weight:400;color:var(--a);}
+  .hero .subtitle{font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:.06em;color:var(--ink-faint);margin:-6px 0 14px;}
+  .hero p{color:var(--ink-soft);font-size:14px;max-width:680px;line-height:1.55;margin:0;}
+
+  .exec{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px;margin-bottom:26px;scroll-margin-top:24px;}
+  .purpose-banner{background:#EAF0FB;border:1px solid #C7D6EE;border-left:4px solid var(--a);border-radius:12px;padding:16px 20px;margin-bottom:26px;}
+  .purpose-banner .pb-label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--a);font-weight:600;margin:0 0 6px;}
+  .purpose-banner p{font-size:13px;line-height:1.6;color:var(--ink);margin:0;}
+  .purpose-banner b{color:var(--a);}
+  .exec h3{font-family:'Fraunces',serif;font-size:17px;font-weight:600;margin:0 0 10px;}
+  .exec p{font-size:13.5px;line-height:1.65;color:var(--ink);margin:0 0 10px;}
+  .exec p:last-child{margin-bottom:0;}
+  .kw{border-bottom:1.5px dashed currentColor;cursor:pointer;font-weight:600;padding-bottom:1px;transition:background .12s ease;border-radius:2px;}
+  .kw:hover{background:#EEF1F8;}
+
+  /* ===== Knowledge tab section ===== */
+  .know-section{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:26px;overflow:hidden;scroll-margin-top:24px;}
+  .know-section-head{padding:22px 26px 4px;}
+  .know-section-head .eyebrow2{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 6px;}
+  .know-section-head h3{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 6px;}
+  .know-section-head p{font-size:13px;color:var(--ink-soft);margin:0 0 18px;max-width:640px;line-height:1.5;}
+
+  .tab-bar{display:flex;gap:8px;padding:0 26px 20px;flex-wrap:wrap;}
+  .tab-btn{
+    display:flex;align-items:center;gap:9px;padding:9px 16px 9px 10px;border-radius:30px;
+    border:1.5px solid var(--line);background:#fff;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;
+    font-size:12.5px;font-weight:600;color:var(--ink-soft);transition:all .15s ease;
+  }
+  .tab-btn .tab-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:11px;color:#fff;flex:none;}
+  .tab-btn.active{border-color:transparent;color:#fff;}
+  .tab-btn:not(.active):hover{border-color:#c7cce0;}
+
+  .know-panel{border-top:1px solid var(--line);padding:24px 26px 28px;background:#FBFCFD;}
+  .know-panel-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .know-panel-head .badge-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:14px;color:#fff;flex:none;}
+  .know-panel-head h4{font-family:'Fraunces',serif;font-size:17px;font-weight:600;margin:0;}
+  .know-panel-head .role{font-size:12px;color:var(--ink-soft);margin-top:1px;}
+
+  .know-grid2{display:flex;flex-direction:column;gap:0;}
+  .know-point2{padding:13px 0;border-bottom:1px solid var(--line);}
+  .know-point2:last-child{border-bottom:none;}
+  .know-point2 .lbl{display:flex;align-items:baseline;gap:8px;margin-bottom:5px;}
+  .know-point2 .lbl .idx{font-family:'Fraunces',serif;font-weight:700;font-size:14px;flex:none;}
+  .know-point2 .lbl .name{font-size:13px;font-weight:700;color:var(--ink);}
+  .know-point2 .body{font-size:13px;line-height:1.62;color:var(--ink-soft);padding-left:22px;}
+  .doc-chips{display:flex;flex-wrap:wrap;gap:8px;padding-left:22px;margin-top:4px;}
+  .doc-chip{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+    padding:6px 12px;border-radius:20px;cursor:pointer;border:1.5px dashed transparent;transition:background .15s ease;
+  }
+  .doc-chip:hover{background:#EEF1F8;}
+  .doc-chip .arrow{font-size:11px;opacity:.6;}
+  .go-monitoring{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin-top:16px;
+    padding:8px 14px;border-radius:20px;cursor:pointer;color:#fff;
+  }
+
+  /* ===== Synthesis ===== */
+  .synthesis{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:26px 28px;margin-bottom:26px;scroll-margin-top:24px;}
+  .synthesis h3{font-family:'Fraunces',serif;font-size:18px;font-weight:600;margin:0 0 14px;}
+  .synthesis h4{font-family:'Fraunces',serif;font-size:14.5px;font-weight:600;margin:20px 0 8px;}
+  .synthesis p{font-size:13.5px;line-height:1.65;color:var(--ink);margin:0 0 10px;}
+  .flow-table{width:100%;border-collapse:collapse;margin-top:6px;}
+  .flow-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);padding:8px 10px;border-bottom:1px solid var(--line);}
+  .flow-table td{font-size:12.5px;padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-soft);}
+  .qw-list{list-style:none;margin:6px 0 0;padding:0;}
+  .qw-list li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.5;}
+  .qw-list li:last-child{border-bottom:none;}
+  .qw-num{font-family:'Fraunces',serif;font-weight:700;font-size:14px;flex:none;width:22px;}
+
+  /* ===== Monitoring (final feature) ===== */
+  .monitoring-lead{margin-bottom:18px;}
+  .monitoring-lead .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px;}
+  .monitoring-lead h2{font-family:'Fraunces',serif;font-weight:600;font-size:clamp(22px,2.6vw,28px);line-height:1.15;margin:0 0 10px;}
+  .monitoring-lead p{color:var(--ink-soft);font-size:13.5px;max-width:680px;line-height:1.55;margin:0;}
+
+  .monitor-overview{display:grid;grid-template-columns:1.7fr 1fr;gap:20px;margin-bottom:26px;}
+  .mo-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;}
+  .mo-card h4{font-family:'Fraunces',serif;font-size:15px;font-weight:600;margin:0 0 4px;}
+  .mo-card .mo-sub{font-size:11.5px;color:var(--ink-faint);margin:0 0 14px;}
+  .mo-chart-wrap{padding-top:6px;}
+  .sbar-chart{display:flex;align-items:flex-end;gap:16px;height:190px;}
+  .sbar-col{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;min-width:0;}
+  .sbar-track{width:100%;max-width:52px;flex:1;display:flex;flex-direction:column-reverse;border-radius:7px;overflow:hidden;background:#F0F2F6;border:1px solid var(--line);}
+  .sbar-seg{width:100%;transition:height .35s ease;position:relative;}
+  .sbar-seg .seg-n{display:none;}
+  .sbar-track:hover .seg-n{display:block;}
+  .sbar-label{margin-top:8px;font-size:10px;color:var(--ink-soft);text-align:center;line-height:1.3;font-weight:600;}
+  .sbar-total{font-size:9.5px;color:var(--ink-faint);font-family:'IBM Plex Mono',monospace;margin-top:1px;}
+  .sbar-legend{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;padding-top:14px;border-top:1px solid var(--line);}
+  .sbar-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-soft);}
+  .sbar-legend-dot{width:9px;height:9px;border-radius:3px;flex:none;}
+  .storage-note{font-size:10.5px;color:var(--ink-faint);margin-top:10px;}
+  .od-list{display:flex;flex-direction:column;}
+  .od-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer;}
+  .od-item:last-child{border-bottom:none;}
+  .od-item:hover .od-akt{color:var(--ink);}
+  .od-left{display:flex;align-items:center;gap:8px;min-width:0;}
+  .od-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .od-akt{font-size:12px;color:var(--ink-soft);line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .od-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;padding:3px 9px;border-radius:12px;flex:none;white-space:nowrap;}
+  .od-warn{background:var(--warn-bg);color:var(--warn);}
+  .od-crit{background:var(--crit-bg);color:var(--crit);}
+  .od-empty{font-size:12.5px;color:var(--ink-faint);margin:0;padding:6px 0;}
+  @media (max-width:820px){.monitor-overview{grid-template-columns:1fr;}}
+
+  .layer-section{background:var(--panel);border:1px solid var(--line);border-radius:16px;margin-bottom:22px;overflow:hidden;scroll-margin-top:24px;}
+  .layer-head{display:flex;align-items:center;gap:16px;padding:18px 22px;border-left:6px solid transparent;}
+  .badge-num{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:15px;color:#fff;flex:none;}
+  .layer-head h3{font-family:'Fraunces',serif;font-size:18px;font-weight:600;margin:0;}
+  .layer-head .role{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .layer-head .head-progress{margin-left:auto;text-align:right;min-width:120px;}
+  .head-progress .pct{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:500;}
+
+  table{width:100%;border-collapse:collapse;}
+  thead th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;padding:10px 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:#FAFBFC;}
+  tbody td{padding:11px 12px;border-bottom:1px solid var(--line);font-size:13px;vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.done td{background:#FBFDFB;}
+  tbody tr.done .aktivitas{color:#7c8296;text-decoration:line-through;text-decoration-color:#c3c8d6;}
+  col.c-check{width:36px;} col.c-akt{width:22%;} col.c-pj{width:12%;} col.c-saran{width:11%;} col.c-target{width:12%;} col.c-status{width:11%;} col.c-note{width:auto;}
+  .aktivitas{font-weight:500;line-height:1.35;}
+  .pj, .saran{color:var(--ink-soft);line-height:1.35;}
+  .saran{font-size:11.5px;font-style:italic;}
+  input[type="checkbox"]{width:17px;height:17px;accent-color:#1C7A4A;cursor:pointer;}
+  input[type="date"].target-date{width:100%;border:1px solid var(--line);border-radius:7px;padding:6px 7px;font-family:'IBM Plex Sans',sans-serif;font-size:11.5px;color:var(--ink);background:#fff;}
+  input[type="date"].target-date.u-warn{border-color:var(--warn);background:var(--warn-bg);}
+  input[type="date"].target-date.u-crit{border-color:var(--crit);background:var(--crit-bg);color:var(--crit);}
+  .date-flag{font-size:10px;font-family:'IBM Plex Mono',monospace;margin-top:4px;display:block;}
+  .date-flag.u-warn{color:var(--warn);}
+  .date-flag.u-crit{color:var(--crit);font-weight:600;}
+  .status-wrap{min-width:104px;}
+  .status-locked{display:inline-block;font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;background:var(--st-belum-bg);color:var(--st-belum);white-space:nowrap;}
+  select.status-select{appearance:none;-webkit-appearance:none;border:1px solid transparent;border-radius:20px;padding:5px 24px 5px 11px;font-size:11.5px;font-weight:600;font-family:'IBM Plex Sans',sans-serif;cursor:pointer;background-repeat:no-repeat;background-position:right 9px center;background-size:8px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%235B627A'/></svg>");}
+  .st-draft{background:var(--st-draft-bg);color:var(--st-draft);}
+  .st-final{background:var(--st-final-bg);color:var(--st-final);}
+  textarea.note{width:100%;min-height:38px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:var(--ink);background:#FCFCFD;}
+  textarea.note:focus{outline:2px solid #b9c4e0;border-color:transparent;}
+
+  .flash-highlight{animation:flashRow 1.6s ease;}
+  @keyframes flashRow{0%{background:#FFF3D6;} 100%{background:transparent;}}
+
+  footer.note-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;font-size:12px;color:var(--ink-soft);}
+  #save-flag{font-family:'IBM Plex Mono',monospace;font-size:11px;opacity:0;transition:opacity .25s ease;}
+  #save-flag.show{opacity:1;}
+
+  @media (max-width:1000px){.shell{flex-direction:column;} .sidebar{position:relative;width:100%;height:auto;max-height:none;} main{padding:24px 16px 80px;}}
+  @media (max-width:760px){
+    table, thead, tbody, tr, td, th{display:block;}
+    thead{display:none;}
+    tbody tr{padding:12px 14px 14px;border-bottom:1px solid var(--line);}
+    tbody td{border:none;padding:6px 0;}
+    tbody td::before{content:attr(data-label);display:block;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:3px;}
+  }
+  @media (prefers-reduced-motion: reduce){.fill{transition:none;} html{scroll-behavior:auto;}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <p class="eyebrow">Helicopter View · IT Kesehatan</p>
+      <h1>Validation Chain<br><em>Arsitektur Kepatuhan RS<br>PMK 6/2026</em></h1>
+      <p class="brand-name">dr. Daryo Soemitro, Sp.BS., FCHMC</p>
+      <p class="brand-role">Digital Health Transformation Advisor</p>
+      <div class="brand-version"><span class="dot"></span>v1.0 · Juli 2026</div>
+      <div class="brand-license" id="brand-license"></div>
+    </div>
+
+    <div class="ov-progress">
+      <div class="ov-row"><span class="ov-num" id="sb-ov-num">0/0</span><span class="ov-cap">Selesai</span></div>
+      <div class="track"><div class="fill" id="sb-ov-bar" style="width:0%;"></div></div>
+    </div>
+
+    <nav class="layer-nav" id="layer-nav"></nav>
+
+    <div class="radar">
+      <div class="nav-label"><span>Task Radar</span><span id="radar-count">0 item</span></div>
+      <div class="radar-filters" id="radar-filters">
+        <button class="rf-btn active" data-filter="all">Semua</button>
+        <button class="rf-btn" data-filter="open">Belum</button>
+        <button class="rf-btn" data-filter="draft">Draft</button>
+        <button class="rf-btn" data-filter="done">Sudah</button>
+        <button class="rf-btn" data-filter="overdue">Lewat Waktu</button>
+      </div>
+      <div id="radar-list"></div>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+    <div class="hero">
+      <p class="eyebrow">Governance-to-Transaction Readiness</p>
+      <h2>Validation Chain: <em>Arsitektur Kepatuhan RS PMK 6/2026</em></h2>
+      <p class="subtitle">Layer demi Layer</p>
+      <p>Klik salah satu layer di bawah untuk membaca penjelasan 1–8: dasar regulasi, ruang lingkup, tujuan, dokumen/formulir wajib, data & metadata, penanggung jawab, output agregat, dan visualisasi kontrol harian. Setiap dokumen pada poin 4 bisa diklik untuk langsung menuju baris di fitur Monitoring — fitur terakhir di halaman ini.</p>
+    </div>
+
+    <div class="purpose-banner">
+      <p class="pb-label">Tujuan Alat Ini</p>
+      <p>Tool ini dibangun untuk <b>menyusun arsitektur/struktur governance lebih dulu</b> — bukan menunggu seluruh detail teknis (KMK/juknis turunan PMK 6/2026) terbit sepenuhnya. Struktur di lima layer ini (kewenangan, anggaran, sistem, verifikasi, transaksi) sudah berpijak pada Pasal 12 yang final dan tidak akan berubah oleh juknis; yang akan menyusul hanyalah <b>parameter/indikator</b> (angka ambang, kriteria per kelompok pelayanan, dsb.). Dengan arsitektur sudah siap, begitu parameter resmi terbit, RS tinggal <b>melengkapi</b> — bukan membangun dari nol.</p>
+      <p style="margin-top:10px;">Karena sifatnya arsitektural, konten ini <b>akan di-upgrade secara berkala</b> sejalan dengan terbitnya KMK/juknis turunan PMK 6/2026 — versi saat ini adalah <b>v1.0 (Juli 2026)</b>, disusun berdasarkan teks PMK 6/2026 dan STARKES 2024 (KMK HK.01.07/MENKES/1596/2024) yang berlaku pada tanggal tersebut.</p>
+    </div>
+
+    <section class="exec" id="exec-summary">
+      <h3>Ringkasan Eksekutif (Helicopter View)</h3>
+      <p>Diagram <i>Validation Chain</i> ini menceritakan satu hukum besi tata kelola rumah sakit: kesalahan tidak lahir di kasir atau di gudang farmasi — ia lahir di atas, lalu mengalir ke bawah dan berakumulasi. Lima layer saling mengunci: kalau Layer 1 (kewenangan) salah desain, Layer 5 (transaksi) akan salah eksekusi — dan tidak ada sistem SIMRS/ERP secanggih apa pun yang bisa memperbaikinya di hilir.</p>
+      <p>PMK 6/2026 mengubah fondasi ini (Pasal 12): klasifikasi tunggal RS <b>"Tipe A/B/C/D"</b> dihapus, digantikan klasifikasi majemuk — tiap <b>kelompok pelayanan</b> (mis. bedah, penyakit dalam, kardiologi) dinilai kemampuannya sendiri ke dalam empat tingkat: <b>Paripurna, Utama, Madya, Dasar</b>. Satu RS kini bisa memiliki kombinasi tingkat berbeda antar kelompok pelayanan sekaligus — mengubah basis kewenangan, standar pelayanan, struktur organisasi, dan approval matrix di ERP. Setiap layer wajib di-<i>re-validate</i> terhadap perubahan ini, bukan diwariskan otomatis dari struktur lama.</p>
+      <p style="font-size:12px;color:var(--ink-faint);">Catatan status materi: poin "Dasarnya" pada tiap layer merujuk langsung ke pasal PMK 6/2026 yang sudah berlaku (bukan draf). Poin 2–8 (ruang lingkup s.d. visualisasi kontrol) adalah elaborasi <b style="color:var(--ink-soft);">arsitektur tata kelola</b> — praktik konsultasi berbasis kerangka HOT Balance dan CRS Engine — yang dirancang agar mudah diisi parameter resminya begitu KMK/juknis turunan terbit. Isi ini akan diperbarui mengikuti perkembangan regulasi.</p>
+    </section>
+
+
+    <!-- ===================== KNOWLEDGE TAB SECTION ===================== -->
+    <section class="know-section" id="knowledge">
+      <div class="know-section-head">
+        <p class="eyebrow2">Knowledge Base per Layer</p>
+        <h3>Pilih Layer untuk Membuka Penjelasan 1–8</h3>
+        <p>Panel di bawah berganti isi sesuai layer yang dipilih — dari governance sampai titik transaksi.</p>
+      </div>
+      <div class="tab-bar" id="tab-bar"></div>
+      <div class="know-panel" id="know-panel"></div>
+    </section>
+
+    <!-- ===================== SINTESIS LINTAS LAYER ===================== -->
+    <section class="synthesis" id="synthesis">
+      <h3>Sintesis Lintas Layer</h3>
+      <h4>Aliran Hasil — Output Agregat per Level</h4>
+      <p>Prinsipnya: data mengalir naik (bottom-up untuk pelaporan), tapi validitas & kontrol mengalir turun (top-down untuk kepatuhan).</p>
+      <table class="flow-table">
+        <thead><tr><th>Level</th><th>Output Agregat</th><th>Dashboard</th></tr></thead>
+        <tbody>
+          <tr><td>Operasional harian</td><td>Status PR/PO, antrean <span class="kw" data-jump="row:E-0">e-Requisition</span>, alert sistem</td><td>Dashboard unit / procurement (real-time)</td></tr>
+          <tr><td>Manajerial menengah</td><td>Realisasi vs pagu per <span class="kw" data-jump="row:B-0">cost center</span>, compliance konfigurasi</td><td>Dashboard Finance / IT (mingguan)</td></tr>
+          <tr><td>Eksekutif / Board</td><td>Compliance governance, tren transaksi tervalidasi vs ditolak, akumulasi risiko</td><td>Dashboard Eksekutif (bulanan/kuartalan)</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Dampak Klasifikasi Majemuk per Kelompok Pelayanan (PMK 6/2026, Pasal 12) per Layer</h4>
+      <ul class="qw-list">
+        <li><span class="qw-num" style="color:var(--a);">A</span><span><b><span class="kw" data-jump="tab:A">Layer 1</span>:</b> Threshold kewenangan harus dihitung ulang per kombinasi tingkat kemampuan pelayanan (Paripurna/Utama/Madya/Dasar) yang kini melekat pada tiap kelompok pelayanan, bukan diwariskan dari satu kelas RS tunggal seperti dulu.</span></li>
+        <li><span class="qw-num" style="color:var(--b);">B</span><span><b><span class="kw" data-jump="tab:B">Layer 2</span>:</b> Struktur cost center paling rawan tidak sinkron pasca reorganisasi SOTK — titik gap terbesar.</span></li>
+        <li><span class="qw-num" style="color:var(--c);">C</span><span><b><span class="kw" data-jump="tab:C">Layer 3</span>:</b> Matrix approval sistem sering tertinggal (hardcode lama) dari kebijakan baru.</span></li>
+        <li><span class="qw-num" style="color:var(--d);">D</span><span><b><span class="kw" data-jump="tab:D">Layer 4</span>:</b> Nilai ambang approval sistem berpotensi tidak lagi mencerminkan kewenangan riil.</span></li>
+        <li><span class="qw-num" style="color:var(--e);">E</span><span><b><span class="kw" data-jump="tab:E">Layer 5</span>:</b> Unit tetap harus tunduk pada aturan klasifikasi yang didesain di atas, bukan menafsirkan sendiri.</span></li>
+      </ul>
+
+      <h4>Rekomendasi Quick Win (Prioritas Lintas Layer)</h4>
+      <ol class="qw-list">
+        <li><span class="qw-num">1</span><span>Audit cepat <span class="kw" data-jump="row:A-0">SK Delegasi</span> vs struktur klasifikasi majemuk per kelompok pelayanan (Pasal 12) yang baru — fondasi semua perbaikan lain.</span></li>
+        <li><span class="qw-num">2</span><span>Rekonsiliasi <span class="kw" data-jump="row:B-0">cost center vs SOTK terbaru</span> sebelum tutup buku berikutnya.</span></li>
+        <li><span class="qw-num">3</span><span><span class="kw" data-jump="row:C-0">System configuration audit</span> matrix approval ERP vs SK terbaru.</span></li>
+        <li><span class="qw-num">4</span><span><span class="kw" data-jump="row:D-0">Dual-check sementara</span> untuk transaksi di atas threshold kritis.</span></li>
+        <li><span class="qw-num">5</span><span><span class="kw" data-jump="row:E-0">Kunci field klasifikasi OPEX/CAPEX otomatis</span> di e-Requisition.</span></li>
+      </ol>
+    </section>
+
+    <!-- ===================== MONITORING (FITUR TERAKHIR) ===================== -->
+    <div class="monitoring-lead" id="monitoring">
+      <p class="eyebrow">Fitur Terakhir</p>
+      <h2>Monitoring Pelaksanaan</h2>
+      <p>Centang kotak "Mulai" saat aktivitas benar-benar dikerjakan. Status <b>Draft</b> dan <b>Disahkan</b> baru bisa diatur setelah kotak dicentang — sebelum itu, status terkunci pada "Belum Dilakukan". Kolom Catatan selalu bisa diisi kapan saja. Kolom "Target Anda" adalah tenggat yang Anda tentukan sendiri (terpisah dari saran waktu); baris akan ditandai kuning bila lewat ≤7 hari, dan merah bila lebih dari 7 hari.</p>
+    </div>
+
+    <div class="monitor-overview" id="monitor-overview">
+      <div class="mo-card">
+        <h4>Komposisi Status per Layer</h4>
+        <p class="mo-sub">Belum Dilakukan · Draft · Disahkan — dihitung otomatis dari checklist di bawah</p>
+        <div class="mo-chart-wrap" id="sbar-chart-wrap"></div>
+      </div>
+      <div class="mo-card">
+        <h4>Paling Mendesak</h4>
+        <p class="mo-sub">Aktivitas yang sudah lewat "Target Anda", diurutkan dari yang paling lama</p>
+        <div class="od-list" id="overdue-list"></div>
+      </div>
+    </div>
+
+    <div id="layers"></div>
+
+    <p style="font-size:11.5px;color:var(--ink-faint);line-height:1.6;margin:0 0 10px;">
+      <b>Kebijakan Versi:</b> Produk ini disusun sebagai snapshot per tanggal rilis (lihat versi di sidebar) berdasarkan PMK 6/2026 dan STARKES 2024 yang berlaku saat itu. Karena regulasi ini masih dalam masa transisi dan KMK/juknis turunan akan terus terbit, konten akan di-upgrade secara berkala. Pembaruan tidak terkirim otomatis ke salinan yang sudah diunduh — hubungi penyedia untuk mendapatkan versi terbaru.
+    </p>
+    <footer class="note-bar">
+      <span id="storage-note">Memeriksa penyimpanan yang tersedia...</span>
+      <span id="save-flag">tersimpan ✓</span>
+    </footer>
+  </main>
+</div>
+
+<script>
+/* ===================== DATA ===================== */
+const LAYERS = [
+  {
+    id:'A', num:1, color:'#1B3A6B', soft:'#E7ECF4',
+    title:'Governance & Kewenangan', role:'Dewan Pengawas / Direksi',
+    k:{
+      dasar:'Layer ini adalah representasi langsung dari ketentuan tata kelola korporat PMK 6/2026 — kewenangan Dewan Pengawas dan Direksi, batas delegasi, serta risk appetite. Fondasinya adalah Peraturan Internal Rumah Sakit/Hospital Bylaws (Pasal 61–65; TKRS 1), tempat SK Delegasi dan seluruh kebijakan turunan berinduk. Klasifikasi kemampuan pelayanan per kelompok pelayanan (Paripurna/Utama/Madya/Dasar — Pasal 12, menggantikan kelas RS tunggal A/B/C/D) menjadi salah satu variabel yang menentukan skala kewenangan yang boleh didelegasikan.',
+      ruang:'Kebijakan strategis dan konstitusional. Layer ini tidak menyentuh transaksi harian sama sekali — domainnya murni normatif: siapa boleh memutuskan apa, sampai nilai berapa.',
+      tujuan:'Menetapkan kewenangan atas nilai transaksi, batas approval matrix, kebijakan klasifikasi OPEX vs CAPEX, dan threshold kapitalisasi aset.',
+      data:'Master data approver (ID, jabatan, limit nilai per jenis transaksi), tanggal efektif SK, versi dokumen, riwayat revisi (audit trail kebijakan).',
+      pj:'Dewan Pengawas dan Direksi (board level) — bukan operasional.',
+      output:'Approval matrix ringkas sebagai input ke Layer 3 (sistem). Untuk Dashboard Eksekutif: status sosialisasi SK, tingkat kepatuhan implementasi delegasi.',
+      visual:'Bukan harian — kontrol periodik (bulanan/kuartalan): dashboard status compliance governance, indikator "SK aktif vs SK kedaluwarsa".',
+    },
+    items:[
+      {akt:'Audit SK Delegasi Wewenang eksisting vs struktur klasifikasi kelompok pelayanan baru (Pasal 12)', pj:'Sekretaris Direksi', saran:'2 minggu', dok:'SK Delegasi Wewenang (revisi)'},
+      {akt:'Sosialisasi & distribusi SK Delegasi terbaru ke seluruh unit dan IT', pj:'Direksi / Corp. Secretary', saran:'1 minggu stlh SK terbit', dok:'Berita Acara Sosialisasi'},
+      {akt:'Review & update Risk Appetite Statement / Kebijakan Internal Control', pj:'Komite Audit', saran:'1 bulan', dok:'Risk Appetite Statement'},
+      {akt:'Finalisasi SOTK baru sesuai kelompok pelayanan', pj:'Direksi & Bag. SDM', saran:'1 bulan', dok:'SK SOTK'},
+      {akt:'Susun/legalisasi Peraturan Internal RS — Peraturan Organisasi & Peraturan Staf Medis (Pasal 61–65, TKRS 1)', pj:'Direksi & Dewan Pengawas', saran:'6 minggu', dok:'Peraturan Internal RS (Hospital Bylaws)'},
+      {akt:'Susun mekanisme pelaporan Dewan Pengawas — semester ke pemilik, tahunan ke Kemenkes (Pasal 54)', pj:'Sekretaris Dewan Pengawas', saran:'1 bulan', dok:'Laporan Dewan Pengawas (Semester & Tahunan)'},
+      {akt:'Bentuk Komite Etik & susun Kode Etik RS termasuk penanganan konflik kepentingan (TKRS 12)', pj:'Direksi & Komite Etik', saran:'6 minggu', dok:'Kode Etik RS & SK Komite Etik'},
+    ]
+  },
+  {
+    id:'B', num:2, color:'#137A82', soft:'#E2F1F1',
+    title:'Perencanaan & Penganggaran', role:'Corporate Planning & Finance',
+    k:{
+      dasar:'Menerjemahkan arahan governance Layer 1 menjadi instrumen keuangan operasional: Renstra, RKAP, dan struktur akun yang mengikuti standar kemampuan pelayanan per kelompok pelayanan (Pasal 12 PMK 6/2026).',
+      ruang:'Perencanaan tahunan dan struktur akuntansi — jembatan antara kebijakan dan sistem.',
+      tujuan:'Menetapkan pagu RBA per unit/cost center, struktur Chart of Account (COA), aturan akuntansi kapitalisasi, dan target/indikator kinerja.',
+      data:'Kode cost center (aktif/nonaktif), mapping unit ke cost center, nominal pagu per periode, kategori akun, indikator kinerja per unit.',
+      pj:'Bagian Perencanaan & Keuangan Korporat.',
+      output:'Pagu RBA per unit menjadi patokan validasi di Layer 4. Untuk dashboard eksekutif: realisasi anggaran vs pagu per cost center, tren serapan bulanan.',
+      visual:'Dashboard burn-rate anggaran (realisasi vs pagu, per cost center, update harian/mingguan) — sinyal dini bila ada unit mendekati batas pagu.',
+    },
+    items:[
+      {akt:'Rekonsiliasi struktur Cost Center vs SOTK terbaru', pj:'Bag. Perencanaan & Keuangan', saran:'Sblm tutup buku triwulan', dok:'Mapping Cost Center Lama–Baru'},
+      {akt:'Update Renstra & RKAP sesuai kelompok pelayanan', pj:'Corporate Planning', saran:'6 minggu', dok:'RKAP Revisi'},
+      {akt:'Validasi ulang RBA per unit & klasifikasi akun OPEX/CAPEX', pj:'Bag. Keuangan', saran:'3 minggu', dok:'RBA per Unit'},
+      {akt:'Susun mekanisme audit & pelaporan laporan keuangan tahunan ke Kemenkes (Pasal 73 — risiko sanksi s.d. pencabutan izin usaha, Pasal 79–80)', pj:'Bag. Keuangan & Auditor Independen', saran:'Sesuai siklus tahun buku', dok:'Laporan Keuangan Teraudit'},
+    ]
+  },
+  {
+    id:'C', num:3, color:'#B6851F', soft:'#F7EDDA',
+    title:'Sistem & Aturan di ERP', role:'IT / System Owner',
+    k:{
+      dasar:'Enabler teknis — tempat kebijakan (Layer 1) dan anggaran (Layer 2) dikonfigurasi menjadi aturan mesin: approval matrix, mapping akun, rule OPEX/CAPEX.',
+      ruang:'Konfigurasi sistem ERP/SIMRS — bukan kebijakan, bukan transaksi, tapi jembatan otomasi di antara keduanya.',
+      tujuan:'Mengonfigurasi matrix approval sesuai nilai transaksi, memvalidasi anggaran & aset otomatis, kontrol sistem (limit, alert, block), serta menjaga audit trail.',
+      data:'Parameter approval (nilai minimum-maksimum per level approver), tabel mapping akun-cost center, rule engine OPEX/CAPEX, log audit trail.',
+      pj:'IT / System Owner (SIMRS-ERP administrator), berkoordinasi dengan Finance.',
+      output:'Approval matrix terkonfigurasi menjadi gatekeeper bagi Layer 4. Untuk dashboard eksekutif: kesesuaian konfigurasi sistem vs SK Delegasi terbaru.',
+      visual:'Dashboard system alert log — transaksi ter-block, ter-flag anomali, atau menyimpang dari matrix; monitoring harian untuk anomaly detection.',
+    },
+    items:[
+      {akt:'Audit konfigurasi approval matrix ERP vs SK Delegasi aktif', pj:'IT / System Owner', saran:'2 minggu', dok:'Berita Acara Konfigurasi'},
+      {akt:'Update mapping akun & cost center di modul ERP', pj:'IT & Keuangan', saran:'3 minggu', dok:'Dokumen Mapping Akun'},
+      {akt:'Bangun mekanisme trigger otomatis update sistem saat SK baru terbit', pj:'IT', saran:'1 bulan', dok:'SOP Change Request IT'},
+      {akt:'Pastikan pencatatan & pelaporan seluruh kegiatan RS terintegrasi ke SIKNAS (Pasal 74 — kewajiban umum; berlaku juga khusus utk RS Pendidikan & penelitian di Pasal 21, 30(7), 34(5))', pj:'IT / SIMRS', saran:'2 bulan', dok:'Bukti Registrasi/Integrasi SIKNAS'},
+    ]
+  },
+  {
+    id:'D', num:4, color:'#5B3A8E', soft:'#EEE7F6',
+    title:'Procurement & Verifikasi', role:'e-Procurement / Keuangan',
+    k:{
+      dasar:'Titik verifikasi transaksional — memastikan setiap pengadaan patuh terhadap anggaran (Layer 2) dan kewenangan (Layer 1) yang telah dikonfigurasi di sistem (Layer 3).',
+      ruang:'Proses procurement harian: cek anggaran, cek aset, cek approval, penerbitan PR/PO.',
+      tujuan:'Memastikan transaksi tervalidasi terhadap anggaran, klasifikasi OPEX/CAPEX benar, approval sesuai matrix, dan PO/kontrak sah secara hukum.',
+      data:'Nomor PR/PO, nilai transaksi, kode cost center rujukan, klasifikasi OPEX/CAPEX, status approval (level & approver), tanggal transaksi.',
+      pj:'Unit e-Procurement bersama Keuangan (verifikator anggaran).',
+      output:'Data PO/PR tervalidasi menjadi input transaksi resmi ke Layer 5. Untuk dashboard eksekutif: volume & nilai transaksi tervalidasi vs ditolak, lead-time approval.',
+      visual:'Dashboard status PR/PO harian: pending, disetujui, ditolak, dengan aging per level — kontrol operasional paling aktif dalam rantai ini.',
+    },
+    items:[
+      {akt:'Terapkan dual-check manual untuk transaksi di atas threshold kritis', pj:'Keuangan / Procurement', saran:'Segera (interim)', dok:'Checklist Verifikasi Manual'},
+      {akt:'Audit sample transaksi PO/PR bernilai besar 3 bulan terakhir', pj:'Internal Audit', saran:'3 minggu', dok:'Laporan Audit Sample Transaksi'},
+      {akt:'Update threshold approval di sistem e-Procurement', pj:'IT & Procurement', saran:'1 bulan', dok:'Konfigurasi Threshold Baru'},
+      {akt:'Kaji, pilih, dan pantau kontrak klinis & nonklinis termasuk keamanan rantai pasok (TKRS 6 & 7.1)', pj:'Pimpinan RS & Procurement', saran:'Berkelanjutan (triwulanan)', dok:'Berita Acara Evaluasi Kontrak Klinis/Nonklinis'},
+    ]
+  },
+  {
+    id:'E', num:5, color:'#1E6FA8', soft:'#E4EFF7',
+    title:'Titik Transaksi (Unit/Instalasi)', role:'Unit Operasional / SIMRS',
+    k:{
+      dasar:'Titik awal kebutuhan riil pelayanan — permintaan barang/jasa dari unit klinis maupun penunjang, yang harus selaras dengan standar kemampuan pelayanan per kelompok pelayanan terbaru (Pasal 12 PMK 6/2026).',
+      ruang:'Input awal: permintaan barang/jasa, jenis belanja, estimasi nilai dan urgensi dari unit.',
+      tujuan:'Menghasilkan data permintaan akurat, sesuai prioritas kebutuhan, dengan klasifikasi awal barang/jasa yang benar dan tercatat dalam e-Requisition.',
+      data:'ID permintaan, unit pemohon, jenis barang/jasa, estimasi nilai, tingkat urgensi, tanggal pengajuan.',
+      pj:'Kepala Unit/Instalasi (pemohon), dioperasikan melalui SIMRS.',
+      output:'Data permintaan menjadi input Layer 4. Untuk dashboard eksekutif: volume permintaan per unit, tren kebutuhan per kelompok pelayanan, backlog permintaan belum diproses.',
+      visual:'Dashboard antrean e-Requisition harian per unit — status: baru, diproses, ditolak — untuk memantau service level internal pemenuhan kebutuhan unit.',
+    },
+    items:[
+      {akt:'Kunci field klasifikasi OPEX/CAPEX otomatis di e-Requisition', pj:'IT / SIMRS', saran:'1 bulan', dok:'Konfigurasi e-Requisition'},
+      {akt:'Sosialisasi & pelatihan unit terkait perubahan alur requisition', pj:'Bag. Diklat / Unit terkait', saran:'2 minggu stlh sistem update', dok:'Modul Pelatihan e-Requisition'},
+      {akt:'Monitoring backlog & antrean permintaan per unit', pj:'Kepala Unit / Instalasi', saran:'Berkelanjutan (mingguan)', dok:'Laporan Antrean Requisition'},
+    ]
+  },
+];
+
+const KPOINTS = [
+  {key:'dasar', n:1, name:'Dasarnya'},
+  {key:'ruang', n:2, name:'Ruang Lingkup'},
+  {key:'tujuan', n:3, name:'Tujuan'},
+  {key:'dok', n:4, name:'Dokumen Legal & Formulir yang Harus Ada'},
+  {key:'data', n:5, name:'Data & Jenis Data/Metadata yang Dibutuhkan'},
+  {key:'pj', n:6, name:'Penanggung Jawab'},
+  {key:'output', n:7, name:'Output Data Agregat'},
+  {key:'visual', n:8, name:'Visualisasi Kontrol Harian'},
+];
+
+const STORAGE_KEY = 'pmk6-validation-chain-state-v3';
+let STATE = {};
+let radarFilter = 'all';
+let activeTab = 'A';
+
+function rowId(layerId, idx){ return layerId + '-' + idx; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function getLayer(id){ return LAYERS.find(l => l.id === id); }
+
+function overdueInfo(targetDate, isFinal){
+  if(!targetDate || isFinal) return {cls:'', days:0, label:''};
+  const today = new Date(todayISO());
+  const target = new Date(targetDate);
+  const diffDays = Math.floor((today - target) / 86400000);
+  if(diffDays <= 0) return {cls:'', days:diffDays, label:''};
+  if(diffDays <= 7) return {cls:'warn', days:diffDays, label:`Lewat ${diffDays} hari`};
+  return {cls:'crit', days:diffDays, label:`Lewat ${diffDays} hari`};
+}
+
+/* ===================== KNOWLEDGE TAB BAR + PANEL ===================== */
+function buildTabBar(){
+  document.getElementById('tab-bar').innerHTML = LAYERS.map(layer => `
+    <button class="tab-btn ${layer.id === activeTab ? 'active' : ''}" data-tab="${layer.id}"
+      style="${layer.id === activeTab ? `background:${layer.color};` : ''}">
+      <span class="tab-dot" style="background:${layer.color};">${layer.num}</span>
+      ${layer.title}
+    </button>
+  `).join('');
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+  });
+}
+
+function buildKnowPanel(){
+  const layer = getLayer(activeTab);
+  const panel = document.getElementById('know-panel');
+  const pointsHtml = KPOINTS.map(p => {
+    if(p.key === 'dok'){
+      const chips = layer.items.map((item, idx) => {
+        const rid = rowId(layer.id, idx);
+        return `<span class="doc-chip" style="background:${layer.soft};color:${layer.color};" data-jump-doc="${rid}">${item.dok} <span class="arrow">→</span></span>`;
+      }).join('');
+      return `
+        <div class="know-point2">
+          <div class="lbl"><span class="idx" style="color:${layer.color};">${p.n}.</span><span class="name">${p.name}</span></div>
+          <div class="doc-chips">${chips}</div>
+        </div>`;
+    }
+    return `
+      <div class="know-point2">
+        <div class="lbl"><span class="idx" style="color:${layer.color};">${p.n}.</span><span class="name">${p.name}</span></div>
+        <div class="body">${layer.k[p.key]}</div>
+      </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="know-panel-head">
+      <div class="badge-num" style="background:${layer.color};">${layer.num}</div>
+      <div><h4>${layer.title}</h4><div class="role">${layer.role}</div></div>
+    </div>
+    <div class="know-grid2">${pointsHtml}</div>
+    <span class="go-monitoring" style="background:${layer.color};" data-jump-monitoring="${layer.id}">Lihat monitoring layer ini ↓</span>
+  `;
+
+  panel.querySelectorAll('[data-jump-doc]').forEach(el => {
+    el.addEventListener('click', () => jumpToRow(el.dataset.jumpDoc));
+  });
+  const goMon = panel.querySelector('[data-jump-monitoring]');
+  if(goMon) goMon.addEventListener('click', () => jumpToLayerMonitoring(goMon.dataset.jumpMonitoring));
+}
+
+function setActiveTab(layerId){
+  activeTab = layerId;
+  buildTabBar();
+  buildKnowPanel();
+  document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
+    el.classList.toggle('active-tab', el.dataset.tab === layerId);
+  });
+}
+
+/* ===================== BUILD MONITORING TABLE ===================== */
+function buildRowHTML(layer, item, idx){
+  const rid = rowId(layer.id, idx);
+  return `
+    <tr data-rid="${rid}">
+      <td data-label="Mulai"><input type="checkbox" class="chk" data-rid="${rid}"></td>
+      <td data-label="Aktivitas" class="aktivitas">${item.akt}<br><span class="saran" style="display:block;margin-top:3px;">Dok: ${item.dok}</span></td>
+      <td data-label="Penanggung Jawab" class="pj">${item.pj}</td>
+      <td data-label="Saran Waktu" class="saran">${item.saran}</td>
+      <td data-label="Target Anda">
+        <input type="date" class="target-date" data-rid="${rid}">
+        <span class="date-flag" data-rid-flag="${rid}"></span>
+      </td>
+      <td data-label="Status"><div class="status-wrap" data-rid-status="${rid}"></div></td>
+      <td data-label="Catatan"><textarea class="note" data-rid="${rid}" placeholder="Catatan / pengingat..."></textarea></td>
+    </tr>
+  `;
+}
+
+function buildLayerSectionHTML(layer){
+  const rows = layer.items.map((item, idx) => buildRowHTML(layer, item, idx)).join('');
+  return `
+    <section class="layer-section" id="layer-${layer.id}">
+      <div class="layer-head" style="border-left-color:${layer.color}; background:${layer.soft}22;">
+        <div class="badge-num" style="background:${layer.color};">${layer.num}</div>
+        <div><h3>${layer.title}</h3><div class="role">${layer.role}</div></div>
+        <div class="head-progress">
+          <span class="pct" id="pct-${layer.id}">0 / ${layer.items.length}</span>
+          <div class="track"><div class="fill" id="bar-${layer.id}" style="width:0%; background:${layer.color};"></div></div>
+        </div>
+      </div>
+      <table>
+        <colgroup><col class="c-check"><col class="c-akt"><col class="c-pj"><col class="c-saran"><col class="c-target"><col class="c-status"><col class="c-note"></colgroup>
+        <thead><tr><th>Mulai</th><th>Aktivitas</th><th>PJ</th><th>Saran Waktu</th><th>Target Anda</th><th>Status</th><th>Catatan</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </section>
+  `;
+}
+
+/* ===================== SIDEBAR NAV ===================== */
+function buildNavHTML(){
+  document.getElementById('layer-nav').innerHTML =
+    '<div class="nav-label">Knowledge per Layer</div>' +
+    LAYERS.map(layer => `
+      <div class="nav-item" data-tab="${layer.id}">
+        <div class="nav-dot" style="background:${layer.color};">${layer.num}</div>
+        <div class="nav-text"><div class="t">${layer.title}</div><div class="s">${layer.role}</div></div>
+        <span class="nav-pct" id="nav-pct-${layer.id}">0/${layer.items.length}</span>
+      </div>
+    `).join('') +
+    `<div class="nav-item summary-link" data-jump="synthesis">
+       <div class="nav-dot" style="background:#3B4258;">Σ</div>
+       <div class="nav-text"><div class="t">Sintesis Lintas Layer</div><div class="s">Dampak PMK 6/2026 & quick win</div></div>
+     </div>
+     <div class="nav-item summary-link" data-jump="monitoring">
+       <div class="nav-dot" style="background:#3B4258;">✓</div>
+       <div class="nav-text"><div class="t">Fitur Monitoring</div><div class="s">Checklist pelaksanaan</div></div>
+     </div>`;
+
+  document.querySelectorAll('.nav-item[data-tab]').forEach(el => {
+    el.addEventListener('click', () => {
+      setActiveTab(el.dataset.tab);
+      document.getElementById('knowledge').scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+  document.querySelectorAll('.nav-item[data-jump]').forEach(el => {
+    el.addEventListener('click', () => {
+      const target = document.getElementById(el.dataset.jump);
+      if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+  });
+}
+
+/* ===================== TASK RADAR ===================== */
+function buildRadarList(){
+  const list = document.getElementById('radar-list');
+  let entries = [];
+  LAYERS.forEach(layer => {
+    layer.items.forEach((item, idx) => entries.push({rid: rowId(layer.id, idx), layer, item}));
+  });
+  const filtered = entries.filter(({rid}) => {
+    const s = STATE[rid] || {selesai:false,status:'belum',targetDate:'',catatan:''};
+    if(radarFilter === 'all') return true;
+    if(radarFilter === 'open') return !s.selesai;
+    if(radarFilter === 'draft') return s.selesai && s.status === 'draft';
+    if(radarFilter === 'done') return s.selesai && s.status === 'final';
+    if(radarFilter === 'overdue'){ const info = overdueInfo(s.targetDate, s.status === 'final'); return info.cls !== ''; }
+    return true;
+  });
+  document.getElementById('radar-count').textContent = filtered.length + ' item';
+  list.innerHTML = filtered.map(({rid, layer, item}) => {
+    const s = STATE[rid] || {selesai:false,status:'belum',targetDate:'',catatan:''};
+    const info = overdueInfo(s.targetDate, s.status === 'final');
+    let statusChip = '<span class="chip chip-belum">Belum Dilakukan</span>';
+    if(s.selesai && s.status === 'draft') statusChip = '<span class="chip chip-draft">Draft</span>';
+    if(s.selesai && s.status === 'final') statusChip = '<span class="chip chip-final">Disahkan</span>';
+    let dateChip = '<span class="chip chip-nodate">Belum ada target</span>';
+    if(s.targetDate){
+      if(info.cls === 'warn') dateChip = `<span class="chip chip-warn">${info.label}</span>`;
+      else if(info.cls === 'crit') dateChip = `<span class="chip chip-crit">${info.label}</span>`;
+      else dateChip = `<span class="chip chip-belum">${s.targetDate}</span>`;
+    }
+    return `
+      <div class="radar-item ${s.selesai ? 'is-done':''}" data-jump-rid="${rid}">
+        <div class="radar-top"><span class="radar-layer-chip" style="background:${layer.color};"></span><span class="radar-akt">${item.akt}</span></div>
+        <div class="radar-meta">${statusChip}${dateChip}</div>
+      </div>`;
+  }).join('');
+  list.querySelectorAll('.radar-item').forEach(el => el.addEventListener('click', () => jumpToRow(el.dataset.jumpRid)));
+}
+
+document.getElementById('radar-filters').addEventListener('click', (e) => {
+  if(!e.target.classList.contains('rf-btn')) return;
+  document.querySelectorAll('.rf-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  radarFilter = e.target.dataset.filter;
+  buildRadarList();
+});
+
+/* ===================== JUMP HELPERS ===================== */
+function jumpToRow(rid){
+  const row = document.querySelector(`tr[data-rid="${rid}"]`);
+  if(!row) return;
+  document.getElementById('monitoring').scrollIntoView({behavior:'smooth', block:'start'});
+  setTimeout(() => {
+    row.scrollIntoView({behavior:'smooth', block:'center'});
+    row.classList.remove('flash-highlight'); void row.offsetWidth; row.classList.add('flash-highlight');
+  }, 350);
+}
+function jumpToLayerMonitoring(layerId){
+  const sec = document.getElementById('layer-'+layerId);
+  if(sec) sec.scrollIntoView({behavior:'smooth', block:'start'});
+}
+document.addEventListener('click', (e) => {
+  const kw = e.target.closest('.kw');
+  if(!kw) return;
+  const jump = kw.dataset.jump;
+  if(!jump) return;
+  if(jump.startsWith('row:')) jumpToRow(jump.slice(4));
+  else if(jump.startsWith('tab:')){
+    setActiveTab(jump.slice(4));
+    document.getElementById('knowledge').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+});
+
+/* ===================== STATE LOGIC ===================== */
+function ensureState(rid){
+  if(!STATE[rid]) STATE[rid] = {selesai:false, status:'belum', targetDate:'', catatan:''};
+  return STATE[rid];
+}
+function renderStatusControl(rid){
+  const s = ensureState(rid);
+  const wrap = document.querySelector(`[data-rid-status="${rid}"]`);
+  if(!wrap) return;
+  if(!s.selesai){
+    wrap.innerHTML = `<span class="status-locked">Belum Dilakukan</span>`;
+  } else {
+    wrap.innerHTML = `
+      <select class="status-select ${s.status === 'final' ? 'st-final' : 'st-draft'}" data-rid="${rid}">
+        <option value="draft" ${s.status==='draft'?'selected':''}>Draft</option>
+        <option value="final" ${s.status==='final'?'selected':''}>Disahkan</option>
+      </select>`;
+    wrap.querySelector('select').addEventListener('change', (e) => {
+      const st = ensureState(rid);
+      st.status = e.target.value;
+      e.target.classList.remove('st-draft','st-final');
+      e.target.classList.add(st.status === 'final' ? 'st-final' : 'st-draft');
+      afterChange(rid);
+    });
+  }
+}
+function renderDateFlag(rid){
+  const s = ensureState(rid);
+  const input = document.querySelector(`input.target-date[data-rid="${rid}"]`);
+  const flag = document.querySelector(`[data-rid-flag="${rid}"]`);
+  if(!input) return;
+  input.value = s.targetDate || '';
+  const info = overdueInfo(s.targetDate, s.status === 'final');
+  input.classList.remove('u-warn','u-crit');
+  flag.classList.remove('u-warn','u-crit');
+  flag.textContent = '';
+  if(info.cls === 'warn'){ input.classList.add('u-warn'); flag.classList.add('u-warn'); flag.textContent = info.label; }
+  if(info.cls === 'crit'){ input.classList.add('u-crit'); flag.classList.add('u-crit'); flag.textContent = info.label; }
+}
+function applyRowVisual(rid){
+  const s = ensureState(rid);
+  const tr = document.querySelector(`tr[data-rid="${rid}"]`);
+  if(!tr) return;
+  tr.classList.toggle('done', !!s.selesai && s.status === 'final');
+  renderStatusControl(rid);
+  renderDateFlag(rid);
+}
+/* ===================== MONITORING OVERVIEW: STACKED BAR (NATIVE, NO CDN) + OVERDUE ===================== */
+function buildStatusChart(){
+  const wrap = document.getElementById('sbar-chart-wrap');
+  if(!wrap) return;
+
+  const rows = LAYERS.map(layer => {
+    let belum = 0, draft = 0, fin = 0;
+    layer.items.forEach((item, idx) => {
+      const s = STATE[rowId(layer.id, idx)];
+      if(!s || !s.selesai) belum++;
+      else if(s.status === 'final') fin++;
+      else draft++;
+    });
+    return {layer, belum, draft, fin, total: layer.items.length};
+  });
+
+  const cols = rows.map(({layer, belum, draft, fin, total}) => {
+    const pct = (n) => total ? Math.round((n/total)*100) : 0;
+    return `
+      <div class="sbar-col">
+        <div class="sbar-track" title="${layer.title}: ${belum} belum, ${draft} draft, ${fin} disahkan">
+          <div class="sbar-seg" style="height:${pct(belum)}%; background:#9098AC;"></div>
+          <div class="sbar-seg" style="height:${pct(draft)}%; background:#B6851F;"></div>
+          <div class="sbar-seg" style="height:${pct(fin)}%; background:#1C7A4A;"></div>
+        </div>
+        <div class="sbar-label">L${layer.num} · ${layer.title.split(' ')[0]}</div>
+        <div class="sbar-total">${fin}/${total} selesai</div>
+      </div>
+    `;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="sbar-chart">${cols}</div>
+    <div class="sbar-legend">
+      <span class="sbar-legend-item"><span class="sbar-legend-dot" style="background:#9098AC;"></span>Belum Dilakukan</span>
+      <span class="sbar-legend-item"><span class="sbar-legend-dot" style="background:#B6851F;"></span>Draft</span>
+      <span class="sbar-legend-item"><span class="sbar-legend-dot" style="background:#1C7A4A;"></span>Disahkan</span>
+    </div>
+  `;
+}
+
+function buildOverdueList(){
+  const list = document.getElementById('overdue-list');
+  if(!list) return;
+  let entries = [];
+  LAYERS.forEach(layer => {
+    layer.items.forEach((item, idx) => {
+      const rid = rowId(layer.id, idx);
+      const s = STATE[rid];
+      if(!s) return;
+      const info = overdueInfo(s.targetDate, s.status === 'final');
+      if(info.cls) entries.push({rid, layer, item, info});
+    });
+  });
+  entries.sort((a, b) => b.info.days - a.info.days);
+
+  if(entries.length === 0){
+    list.innerHTML = `<p class="od-empty">Tidak ada aktivitas yang lewat tenggat saat ini.</p>`;
+    return;
+  }
+  list.innerHTML = entries.slice(0, 6).map(({rid, layer, item, info}) => `
+    <div class="od-item" data-jump-rid="${rid}">
+      <div class="od-left"><span class="od-dot" style="background:${layer.color};"></span><span class="od-akt">${item.akt}</span></div>
+      <span class="od-badge ${info.cls === 'crit' ? 'od-crit' : 'od-warn'}">${info.label}</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('.od-item').forEach(el => el.addEventListener('click', () => jumpToRow(el.dataset.jumpRid)));
+}
+
+function afterChange(rid){
+  applyRowVisual(rid);
+  updateAllProgress();
+  buildRadarList();
+  buildStatusChart();
+  buildOverdueList();
+  persist();
+}
+function attachRowListeners(){
+  document.querySelectorAll('.chk').forEach(el => {
+    el.addEventListener('change', (e) => {
+      const rid = e.target.dataset.rid;
+      const s = ensureState(rid);
+      s.selesai = e.target.checked;
+      if(!s.selesai){ s.status = 'belum'; }
+      else if(s.status === 'belum'){ s.status = 'draft'; }
+      afterChange(rid);
+    });
+  });
+  document.querySelectorAll('input.target-date').forEach(el => {
+    el.addEventListener('change', (e) => {
+      const rid = e.target.dataset.rid;
+      const s = ensureState(rid);
+      s.targetDate = e.target.value;
+      afterChange(rid);
+    });
+  });
+  document.querySelectorAll('textarea.note').forEach(el => {
+    el.addEventListener('input', (e) => {
+      const rid = e.target.dataset.rid;
+      const s = ensureState(rid);
+      s.catatan = e.target.value;
+      persist();
+    });
+  });
+}
+function applyInitialState(){
+  LAYERS.forEach(layer => {
+    layer.items.forEach((item, idx) => {
+      const rid = rowId(layer.id, idx);
+      const s = ensureState(rid);
+      const tr = document.querySelector(`tr[data-rid="${rid}"]`);
+      tr.querySelector('.chk').checked = !!s.selesai;
+      tr.querySelector('textarea.note').value = s.catatan || '';
+      applyRowVisual(rid);
+    });
+  });
+}
+function updateAllProgress(){
+  let totalDone = 0, totalAll = 0;
+  LAYERS.forEach(layer => {
+    let done = 0;
+    layer.items.forEach((item, idx) => {
+      const rid = rowId(layer.id, idx);
+      const s = STATE[rid];
+      if(s && s.selesai && s.status === 'final') done++;
+    });
+    const total = layer.items.length;
+    totalDone += done; totalAll += total;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    const pctEl = document.getElementById('pct-'+layer.id);
+    const barEl = document.getElementById('bar-'+layer.id);
+    const navPctEl = document.getElementById('nav-pct-'+layer.id);
+    if(pctEl) pctEl.textContent = `${done} / ${total}`;
+    if(barEl) barEl.style.width = pct + '%';
+    if(navPctEl) navPctEl.textContent = `${done}/${total}`;
+  });
+  const ovPct = totalAll ? Math.round((totalDone/totalAll)*100) : 0;
+  document.getElementById('sb-ov-num').textContent = `${totalDone}/${totalAll}`;
+  document.getElementById('sb-ov-bar').style.width = ovPct + '%';
+}
+
+/* ===================== PERSISTENCE (Claude window.storage, fallback ke localStorage) ===================== */
+let saveTimeout = null;
+let storageMode = 'unknown'; // 'cloud' | 'local' | 'none'
+
+function hasCloudStorage(){
+  return typeof window.storage === 'object' && window.storage !== null && typeof window.storage.set === 'function';
+}
+
+async function persist(){
+  const flag = document.getElementById('save-flag');
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    const payload = JSON.stringify(STATE);
+    let saved = false;
+
+    if(hasCloudStorage()){
+      try{
+        const result = await window.storage.set(STORAGE_KEY, payload, false);
+        if(result){ saved = true; storageMode = 'cloud'; }
+      }catch(err){ console.warn('window.storage gagal, mencoba localStorage:', err); }
+    }
+
+    if(!saved){
+      try{
+        localStorage.setItem(STORAGE_KEY, payload);
+        saved = true; storageMode = 'local';
+      }catch(err){ console.error('localStorage juga gagal:', err); storageMode = 'none'; }
+    }
+
+    updateStorageNote();
+    if(saved){ flag.classList.add('show'); setTimeout(()=>flag.classList.remove('show'), 1500); }
+  }, 300);
+}
+
+async function loadState(){
+  if(hasCloudStorage()){
+    try{
+      const result = await window.storage.get(STORAGE_KEY, false);
+      if(result && result.value){ STATE = JSON.parse(result.value); storageMode = 'cloud'; return; }
+      storageMode = 'cloud';
+      return;
+    }catch(err){ /* key belum ada atau cloud storage gagal — lanjut coba localStorage */ }
+  }
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) STATE = JSON.parse(raw);
+    storageMode = 'local';
+  }catch(err){
+    STATE = {};
+    storageMode = 'none';
+  }
+}
+
+function updateStorageNote(){
+  const el = document.getElementById('storage-note');
+  if(!el) return;
+  if(storageMode === 'cloud') el.textContent = 'Data monitoring tersimpan otomatis di penyimpanan pribadi artifact ini — tidak dibagikan ke pengguna lain.';
+  else if(storageMode === 'local') el.textContent = 'Data monitoring tersimpan otomatis di browser ini (localStorage) — akan tetap ada saat dibuka lagi di perangkat & browser yang sama, tapi tidak ikut kalau file dipindah/dibuka di perangkat lain.';
+  else el.textContent = 'Penyimpanan tidak tersedia di browser ini — perubahan hanya bertahan selama halaman ini terbuka.';
+}
+
+/* ===================== IDENTITAS / LISENSI (watermark ringan) ===================== */
+const LICENSE_KEY = 'pmk6-validation-chain-license-v1';
+
+async function loadLicense(){
+  if(hasCloudStorage()){
+    try{
+      const result = await window.storage.get(LICENSE_KEY, false);
+      if(result && result.value) return JSON.parse(result.value);
+      return null;
+    }catch(err){ /* lanjut coba localStorage */ }
+  }
+  try{
+    const raw = localStorage.getItem(LICENSE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(err){ return null; }
+}
+
+async function saveLicense(data){
+  const payload = JSON.stringify(data);
+  if(hasCloudStorage()){
+    try{ await window.storage.set(LICENSE_KEY, payload, false); return; }
+    catch(err){ /* fallback */ }
+  }
+  try{ localStorage.setItem(LICENSE_KEY, payload); }catch(err){ /* diamkan — watermark hanya dekoratif */ }
+}
+
+function renderLicenseBadge(data){
+  const el = document.getElementById('brand-license');
+  if(!el) return;
+  if(!data || data.skipped){
+    el.innerHTML = `<span class="edit-license" id="open-license-modal">+ Isi identitas pengguna</span>`;
+  } else {
+    const parts = [data.nama, data.instansi].filter(Boolean).join(' — ');
+    el.innerHTML = `Dipakai oleh: <b>${parts || '(tanpa nama)'}</b><br><span class="edit-license" id="open-license-modal">ubah</span>`;
+  }
+  const trigger = document.getElementById('open-license-modal');
+  if(trigger) trigger.addEventListener('click', () => showLicenseModal(data));
+}
+
+function showLicenseModal(existing){
+  if(document.getElementById('license-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'id-overlay';
+  overlay.id = 'license-overlay';
+  overlay.innerHTML = `
+    <div class="id-card">
+      <p class="id-eyebrow">Identitas Pengguna</p>
+      <h3>Untuk siapa salinan ini?</h3>
+      <p class="desc">Opsional — isi nama & asal RS Anda supaya tercatat sebagai pemilik salinan ini. Data tersimpan hanya di perangkat Anda sendiri, tidak dikirim ke mana pun.</p>
+      <div class="id-field">
+        <label for="lic-nama">Nama</label>
+        <input type="text" id="lic-nama" placeholder="mis. dr. Nama Lengkap" value="${existing?.nama ? existing.nama.replace(/"/g,'&quot;') : ''}">
+      </div>
+      <div class="id-field">
+        <label for="lic-instansi">Asal RS / Instansi</label>
+        <input type="text" id="lic-instansi" placeholder="mis. RS Contoh Sehat" value="${existing?.instansi ? existing.instansi.replace(/"/g,'&quot;') : ''}">
+      </div>
+      <div class="id-actions">
+        <button class="id-btn-skip" id="lic-skip">Lewati</button>
+        <button class="id-btn-primary" id="lic-save">Simpan</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById('lic-save').addEventListener('click', async () => {
+    const nama = document.getElementById('lic-nama').value.trim();
+    const instansi = document.getElementById('lic-instansi').value.trim();
+    const data = {nama, instansi, skipped:false, savedAt: todayISO()};
+    await saveLicense(data);
+    renderLicenseBadge(data);
+    overlay.remove();
+  });
+  document.getElementById('lic-skip').addEventListener('click', async () => {
+    const data = {skipped:true};
+    await saveLicense(data);
+    renderLicenseBadge(data);
+    overlay.remove();
+  });
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) overlay.remove(); });
+}
+
+async function initLicense(){
+  const existing = await loadLicense();
+  renderLicenseBadge(existing);
+  if(!existing) showLicenseModal(null);
+}
+
+/* ===================== INIT ===================== */
+(async function init(){
+  await loadState();
+  updateStorageNote();
+  buildNavHTML();
+  buildTabBar();
+  buildKnowPanel();
+  document.getElementById('layers').innerHTML = LAYERS.map(buildLayerSectionHTML).join('');
+  applyInitialState();
+  attachRowListeners();
+  updateAllProgress();
+  buildRadarList();
+  buildStatusChart();
+  buildOverdueList();
+  initLicense();
+})();
+</script>
+</body>
+</html>
